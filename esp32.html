@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Plant Pole Dashboard (Dual)</title>
+    <title>Smart Plant Pole System</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
     <style>
         body { font-family: 'Kanit', sans-serif; text-align: center; background: #e8f5e9; padding: 20px; }
@@ -15,35 +15,12 @@
         .warning { background: #ffecb3; color: #ffa000; }
         .danger { background: #ffccbc; color: #d84315; }
         select { padding: 10px; font-size: 1rem; border-radius: 5px; border: 1px solid #ccc; width: 100%; margin-bottom: 10px; }
-        hr { border: 0.5px solid #eee; }
     </style>
 </head>
 <body>
-    <h1>🌿 เสาปักกระถางอัจฉริยะ (แบบคู่)</h1>
-    
-    <div class="container">
-        <div class="card">
-            <select id="plantSelect1" onchange="analyzeData(1)">
-                <option value="chili">ต้นพริก</option>
-                <option value="tomato">มะเขือเทศ</option>
-            </select>
-            <div id="plantName1">📍 กระถางที่ 1 (sensor1)</div>
-            <hr>
-            <div>ความชื้น: <span id="moist1" class="value">--</span> %</div>
-            <div id="moistStatus1" class="status-box">รอข้อมูล...</div>
+    <h1>🌿 ระบบเสาปักกระถางอัจฉริยะ</h1>
+    <div id="pot-container" class="container">
         </div>
-
-        <div class="card">
-            <select id="plantSelect2" onchange="analyzeData(2)">
-                <option value="chili">ต้นพริก</option>
-                <option value="tomato">มะเขือเทศ</option>
-            </select>
-            <div id="plantName2">📍 กระถางที่ 2 (sensor2)</div>
-            <hr>
-            <div>ความชื้น: <span id="moist2" class="value">--</span> %</div>
-            <div id="moistStatus2" class="status-box">รอข้อมูล...</div>
-        </div>
-    </div>
 
     <script>
         const plantConfig = {
@@ -51,36 +28,56 @@
             tomato: { name: "มะเขือเทศ", moistLow: 70, moistHigh: 90 }
         };
 
+        const moistureData = {}; // เก็บข้อมูลกระถางทั้งหมด { sensorID: value }
         const client = new Paho.MQTT.Client("62c63645303547c18e196a9f4a50a082.s1.eu.hivemq.cloud", 8884, "web_" + Math.random().toString(16).substr(2, 8));
-        
-        let moistureData = { 1: 0, 2: 0 }; // เก็บค่าแยกตามกระถาง
 
         client.onMessageArrived = (msg) => {
-            if (msg.destinationName === "esp32/sensor1") {
-                moistureData[1] = parseFloat(msg.payloadString);
-                document.getElementById("moist1").innerHTML = moistureData[1];
-                analyzeData(1);
-            } else if (msg.destinationName === "esp32/sensor2") {
-                moistureData[2] = parseFloat(msg.payloadString);
-                document.getElementById("moist2").innerHTML = moistureData[2];
-                analyzeData(2);
+            // ดึงเลข ID จาก Topic เช่น esp32/sensor1 -> sensor1
+            const sensorID = msg.destinationName.split('/')[1]; 
+            const value = parseFloat(msg.payloadString);
+            
+            moistureData[sensorID] = value;
+            
+            // ถ้ายังไม่มีการสร้างช่องกระถางนี้ ให้สร้างใหม่
+            if (!document.getElementById("card-" + sensorID)) {
+                createPotCard(sensorID);
             }
+            
+            // อัปเดตค่าและวิเคราะห์ผล
+            document.getElementById("val-" + sensorID).innerHTML = value;
+            analyzeData(sensorID);
         };
 
-        function analyzeData(potNum) {
-            const selectedPlant = document.getElementById("plantSelect" + potNum).value;
+        function createPotCard(id) {
+            const html = `
+                <div class="card" id="card-${id}">
+                    <select id="select-${id}" onchange="analyzeData('${id}')">
+                        <option value="chili">ต้นพริก</option>
+                        <option value="tomato">มะเขือเทศ</option>
+                    </select>
+                    <div>📍 กระถาง: ${id}</div>
+                    <hr>
+                    <div>ความชื้น: <span id="val-${id}" class="value">--</span> %</div>
+                    <div id="stat-${id}" class="status-box">รอข้อมูล...</div>
+                </div>
+            `;
+            document.getElementById('pot-container').insertAdjacentHTML('beforeend', html);
+        }
+
+        function analyzeData(id) {
+            const selectedPlant = document.getElementById("select-" + id).value;
             const config = plantConfig[selectedPlant];
-            const statusDiv = document.getElementById("moistStatus" + potNum);
-            const val = moistureData[potNum];
+            const statusDiv = document.getElementById("stat-" + id);
+            const val = moistureData[id];
             
             let message = "";
             let cssClass = "";
 
             if (val < config.moistLow) {
-                message = "❌ ขาดน้ำ (ควรไปรดน้ำ)";
+                message = "❌ ขาดน้ำ";
                 cssClass = "danger";
             } else if (val > config.moistHigh) {
-                message = "⚠️ น้ำเยอะไป (ระวังรากเน่า)";
+                message = "⚠️ น้ำเยอะไป";
                 cssClass = "warning";
             } else {
                 message = "✅ ความชื้นพอดี";
