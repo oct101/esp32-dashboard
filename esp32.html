@@ -3,94 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Plant Pole System</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+    <title>Smart Plant Pole Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;500&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Kanit', sans-serif; text-align: center; background: #e8f5e9; padding: 20px; }
-        .container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
-        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 280px; margin-bottom: 20px; }
-        .value { font-size: 2.5rem; font-weight: bold; color: #2e7d32; }
-        .status-box { margin-top: 15px; padding: 10px; border-radius: 10px; font-weight: bold; min-height: 40px; }
-        .normal { background: #c8e6c9; color: #2e7d32; }
-        .warning { background: #ffecb3; color: #ffa000; }
-        .danger { background: #ffccbc; color: #d84315; }
-        select { padding: 10px; font-size: 1rem; border-radius: 5px; border: 1px solid #ccc; width: 100%; margin-bottom: 10px; }
+        body { font-family: 'Kanit', sans-serif; text-align: center; background: #f0f4f0; padding: 20px; }
+        .container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        .card { background: white; padding: 25px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 300px; margin-bottom: 20px; position: relative; }
+        .soil-val { font-size: 3.5rem; font-weight: bold; color: #2e7d32; margin: 10px 0; }
+        .env-info { display: flex; justify-content: space-around; font-size: 0.9rem; color: #666; background: #f9f9f9; padding: 10px; border-radius: 15px; }
+        .status-msg { margin-top: 15px; padding: 12px; border-radius: 12px; font-weight: bold; }
+        .batt-box { font-size: 0.8rem; margin-top: 10px; color: #444; }
+        .normal { background: #e8f5e9; color: #2e7d32; }
+        .danger { background: #ffebee; color: #c62828; }
+        select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; font-family: 'Kanit'; }
+        h1 { color: #1b5e20; }
     </style>
 </head>
 <body>
     <h1>🌿 ระบบเสาปักกระถางอัจฉริยะ</h1>
-    <div id="pot-container" class="container">
-        </div>
+    <div id="pot-container" class="container"></div>
 
     <script>
         const plantConfig = {
-            chili: { name: "ต้นพริก", moistLow: 60, moistHigh: 80 },
-            tomato: { name: "มะเขือเทศ", moistLow: 70, moistHigh: 90 }
+            chili: { name: "ต้นพริก", low: 60, high: 80 },
+            tomato: { name: "มะเขือเทศ", low: 70, high: 90 }
         };
 
-        const moistureData = {}; // เก็บข้อมูลกระถางทั้งหมด { sensorID: value }
+        const potData = {}; 
         const client = new Paho.MQTT.Client("62c63645303547c18e196a9f4a50a082.s1.eu.hivemq.cloud", 8884, "web_" + Math.random().toString(16).substr(2, 8));
 
         client.onMessageArrived = (msg) => {
-            // ดึงเลข ID จาก Topic เช่น esp32/sensor1 -> sensor1
-            const sensorID = msg.destinationName.split('/')[1]; 
-            const value = parseFloat(msg.payloadString);
+            const id = msg.destinationName.split('/')[1];
+            const data = JSON.parse(msg.payloadString);
+            potData[id] = data;
+
+            if (!document.getElementById("card-" + id)) createCard(id);
             
-            moistureData[sensorID] = value;
-            
-            // ถ้ายังไม่มีการสร้างช่องกระถางนี้ ให้สร้างใหม่
-            if (!document.getElementById("card-" + sensorID)) {
-                createPotCard(sensorID);
-            }
-            
-            // อัปเดตค่าและวิเคราะห์ผล
-            document.getElementById("val-" + sensorID).innerHTML = value;
-            analyzeData(sensorID);
+            document.getElementById("soil-" + id).innerText = data.soil;
+            document.getElementById("temp-" + id).innerText = data.temp.toFixed(1) + "°C";
+            document.getElementById("hum-" + id).innerText = data.hum.toFixed(1) + "%";
+            document.getElementById("volt-" + id).innerText = data.volt.toFixed(2);
+            analyze(id);
         };
 
-        function createPotCard(id) {
+        function createCard(id) {
             const html = `
                 <div class="card" id="card-${id}">
-                    <select id="select-${id}" onchange="analyzeData('${id}')">
+                    <select id="sel-${id}" onchange="analyze('${id}')">
                         <option value="chili">ต้นพริก</option>
                         <option value="tomato">มะเขือเทศ</option>
                     </select>
-                    <div>📍 กระถาง: ${id}</div>
-                    <hr>
-                    <div>ความชื้น: <span id="val-${id}" class="value">--</span> %</div>
-                    <div id="stat-${id}" class="status-box">รอข้อมูล...</div>
-                </div>
-            `;
+                    <div style="font-size: 0.7rem; color: #aaa;">ID: ${id}</div>
+                    <div id="soil-${id}" class="soil-val">--</div>
+                    <div style="color: #888;">ความชื้นในดิน (%)</div>
+                    <div class="env-info">
+                        <div>🌡️ อากาศ: <b id="temp-${id}">--</b></div>
+                        <div>💧 อากาศ: <b id="hum-${id}">--</b></div>
+                    </div>
+                    <div class="batt-box">🔋 แรงดันแบตเตอรี่: <b id="volt-${id}">--</b> V</div>
+                    <div id="stat-${id}" class="status-msg">รอข้อมูล...</div>
+                </div>`;
             document.getElementById('pot-container').insertAdjacentHTML('beforeend', html);
         }
 
-        function analyzeData(id) {
-            const selectedPlant = document.getElementById("select-" + id).value;
-            const config = plantConfig[selectedPlant];
-            const statusDiv = document.getElementById("stat-" + id);
-            const val = moistureData[id];
+        function analyze(id) {
+            const config = plantConfig[document.getElementById("sel-" + id).value];
+            const val = potData[id].soil;
+            const volt = potData[id].volt;
+            const el = document.getElementById("stat-" + id);
             
-            let message = "";
-            let cssClass = "";
+            if (val < config.low) { el.innerText = "❌ ขาดน้ำ (ต้องรดน้ำ)"; el.className = "status-msg danger"; }
+            else if (val > config.high) { el.innerText = "⚠️ น้ำเยอะไป"; el.className = "status-msg danger"; }
+            else { el.innerText = "✅ สภาพเหมาะสม"; el.className = "status-msg normal"; }
 
-            if (val < config.moistLow) {
-                message = "❌ ขาดน้ำ";
-                cssClass = "danger";
-            } else if (val > config.moistHigh) {
-                message = "⚠️ น้ำเยอะไป";
-                cssClass = "warning";
-            } else {
-                message = "✅ ความชื้นพอดี";
-                cssClass = "normal";
-            }
-
-            statusDiv.innerHTML = message;
-            statusDiv.className = "status-box " + cssClass;
+            // แจ้งเตือนแบตต่ำ
+            document.getElementById("volt-"+id).style.color = (volt < 3.4) ? "red" : "green";
         }
 
-        client.connect({
-            useSSL: true, userName: "ESP32IOT", password: "Pipakdee2001",
-            onSuccess: () => { client.subscribe("esp32/#"); }
+        client.connect({ 
+            useSSL: true, 
+            userName: "ESP32IOT", 
+            password: "Pipakdee2001", 
+            onSuccess: () => client.subscribe("esp32/#") 
         });
     </script>
 </body>
