@@ -3,28 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Plant Pole Dashboard</title>
+    <title>Smart Plant Dashboard + Data Log</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;500&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Kanit', sans-serif; text-align: center; background: #f0f4f0; padding: 20px; }
         .container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
-        .card { background: white; padding: 25px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 300px; margin-bottom: 20px; position: relative; }
-        .soil-val { font-size: 3.5rem; font-weight: bold; color: #2e7d32; margin: 10px 0; }
-        .env-info { display: flex; justify-content: space-around; font-size: 0.9rem; color: #666; background: #f9f9f9; padding: 10px; border-radius: 15px; }
-        .status-msg { margin-top: 15px; padding: 12px; border-radius: 12px; font-weight: bold; }
-        .batt-box { font-size: 0.8rem; margin-top: 10px; color: #444; }
+        .card { background: white; padding: 25px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 300px; margin-bottom: 20px; }
+        .soil-val { font-size: 3.5rem; font-weight: bold; color: #2e7d32; }
+        .env-info { display: flex; justify-content: space-around; font-size: 0.9rem; color: #666; background: #f9f9f9; padding: 10px; border-radius: 15px; margin: 10px 0; }
+        .status-msg { padding: 12px; border-radius: 12px; font-weight: bold; }
         .normal { background: #e8f5e9; color: #2e7d32; }
         .danger { background: #ffebee; color: #c62828; }
         select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; font-family: 'Kanit'; }
-        h1 { color: #1b5e20; }
     </style>
 </head>
 <body>
-    <h1>🌿 ระบบเสาปักกระถางอัจฉริยะ</h1>
+    <h1>🌿 เสาปักกระถางอัจฉริยะ</h1>
     <div id="pot-container" class="container"></div>
 
     <script>
+        // URL ของคุณที่ได้จาก Google Apps Script
+        const scriptURL = 'https://script.google.com/macros/s/AKfycbz0ZCEvWy6ovRNFUVpFsMBZVwBS78j9lLVF7y0mPswbXuH05KBuKJHtMxT3Lo3vCHKSmQ/exec';
+
         const plantConfig = {
             chili: { name: "ต้นพริก", low: 60, high: 80 },
             tomato: { name: "มะเขือเทศ", low: 70, high: 90 }
@@ -34,17 +35,24 @@
         const client = new Paho.MQTT.Client("62c63645303547c18e196a9f4a50a082.s1.eu.hivemq.cloud", 8884, "web_" + Math.random().toString(16).substr(2, 8));
 
         client.onMessageArrived = (msg) => {
-            const id = msg.destinationName.split('/')[1];
+            const id = msg.destinationName.split('/')[1]; 
             const data = JSON.parse(msg.payloadString);
             potData[id] = data;
 
             if (!document.getElementById("card-" + id)) createCard(id);
             
-            document.getElementById("soil-" + id).innerText = data.soil;
-            document.getElementById("temp-" + id).innerText = data.temp.toFixed(1) + "°C";
-            document.getElementById("hum-" + id).innerText = data.hum.toFixed(1) + "%";
-            document.getElementById("volt-" + id).innerText = data.volt.toFixed(2);
+            document.getElementById("soil-" + id).innerText = data.s;
+            document.getElementById("temp-" + id).innerText = data.t.toFixed(1) + "°C";
+            document.getElementById("hum-" + id).innerText = data.h + "%";
+            document.getElementById("volt-" + id).innerText = data.v.toFixed(1);
             analyze(id);
+
+            // ส่งข้อมูลไปบันทึกใน Google Sheets
+            fetch(scriptURL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify({ id: id, s: data.s, t: data.t, h: data.h, v: data.v })
+            });
         };
 
         function createCard(id) {
@@ -56,12 +64,12 @@
                     </select>
                     <div style="font-size: 0.7rem; color: #aaa;">ID: ${id}</div>
                     <div id="soil-${id}" class="soil-val">--</div>
-                    <div style="color: #888;">ความชื้นในดิน (%)</div>
+                    <div style="color: #888; margin-bottom: 10px;">ความชื้นดิน (%)</div>
                     <div class="env-info">
-                        <div>🌡️ อากาศ: <b id="temp-${id}">--</b></div>
-                        <div>💧 อากาศ: <b id="hum-${id}">--</b></div>
+                        <div>🌡️ <span id="temp-${id}">--</span></div>
+                        <div>💧 <span id="hum-${id}">--</span></div>
+                        <div>🔋 <span id="volt-${id}">--</span>V</div>
                     </div>
-                    <div class="batt-box">🔋 แรงดันแบตเตอรี่: <b id="volt-${id}">--</b> V</div>
                     <div id="stat-${id}" class="status-msg">รอข้อมูล...</div>
                 </div>`;
             document.getElementById('pot-container').insertAdjacentHTML('beforeend', html);
@@ -69,16 +77,11 @@
 
         function analyze(id) {
             const config = plantConfig[document.getElementById("sel-" + id).value];
-            const val = potData[id].soil;
-            const volt = potData[id].volt;
+            const val = potData[id].s;
             const el = document.getElementById("stat-" + id);
-            
-            if (val < config.low) { el.innerText = "❌ ขาดน้ำ (ต้องรดน้ำ)"; el.className = "status-msg danger"; }
+            if (val < config.low) { el.innerText = "❌ ขาดน้ำ"; el.className = "status-msg danger"; }
             else if (val > config.high) { el.innerText = "⚠️ น้ำเยอะไป"; el.className = "status-msg danger"; }
-            else { el.innerText = "✅ สภาพเหมาะสม"; el.className = "status-msg normal"; }
-
-            // แจ้งเตือนแบตต่ำ
-            document.getElementById("volt-"+id).style.color = (volt < 3.4) ? "red" : "green";
+            else { el.innerText = "✅ ปกติ"; el.className = "status-msg normal"; }
         }
 
         client.connect({ 
