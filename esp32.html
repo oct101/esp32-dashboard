@@ -15,15 +15,23 @@
         .env-info { display: flex; justify-content: space-around; font-size: 0.9rem; color: #666; background: #f9f9f9; padding: 10px; border-radius: 15px; margin: 10px 0; }
         .normal { background: #e8f5e9; color: #2e7d32; }
         .danger { background: #ffebee; color: #c62828; }
-        select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; font-family: 'Kanit'; font-size: 1rem; cursor: pointer; }
+        select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; font-family: 'Kanit'; font-size: 1rem; }
+        .chart-section { max-width: 800px; margin: 40px auto; background: white; padding: 20px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
     </style>
 </head>
 <body>
     <h1>🌿 เสาปักกระถางอัจฉริยะ</h1>
     <div id="pot-container" class="container"></div>
 
+    <div class="chart-section">
+        <h2 style="color: #2e7d32;">📈 แนวโน้มความชื้นดิน (24 ชม.)</h2>
+        <iframe width="100%" height="371" seamless frameborder="0" scrolling="no" 
+                src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSt51k8QJGRVcU5cIHsoJmHfaoBbMSsScLsapTrPm24Cib3HWSC_5ZnSZEiZzVDF2Qv4wjjNLdXmk6D/pubchart?oid=2140351851&amp;format=interactive">
+        </iframe>
+        <p style="font-size: 0.8rem; color: #888;">* ข้อมูลอัปเดตอัตโนมัติจาก Google Sheets</p>
+    </div>
+
     <script>
-        // เกณฑ์ความชื้นสำหรับต้นไม้แต่ละชนิด
         const plantConfig = {
             chili: { name: "ต้นพริก", low: 60, high: 80 },
             tomato: { name: "มะเขือเทศ", low: 70, high: 90 }
@@ -33,19 +41,17 @@
         const client = new Paho.MQTT.Client("62c63645303547c18e196a9f4a50a082.s1.eu.hivemq.cloud", 8884, "web_" + Math.random().toString(16).substr(2, 8));
 
         client.onMessageArrived = (msg) => {
-            try {
-                const id = msg.destinationName.split('/')[1]; 
-                const data = JSON.parse(msg.payloadString);
-                potData[id] = data;
+            const id = msg.destinationName.split('/')[1]; 
+            const data = JSON.parse(msg.payloadString);
+            potData[id] = data;
 
-                if (!document.getElementById("card-" + id)) createCard(id);
-                
-                document.getElementById("soil-" + id).innerText = data.s;
-                document.getElementById("temp-" + id).innerText = data.t.toFixed(1) + "°C";
-                document.getElementById("hum-" + id).innerText = data.h + "%";
-                document.getElementById("volt-" + id).innerText = data.v.toFixed(1) + "V";
-                analyze(id);
-            } catch(e) { console.log("Error parsing data"); }
+            if (!document.getElementById("card-" + id)) createCard(id);
+            
+            document.getElementById("soil-" + id).innerText = data.s;
+            document.getElementById("temp-" + id).innerText = data.t.toFixed(1) + "°C";
+            document.getElementById("hum-" + id).innerText = data.h + "%";
+            document.getElementById("volt-" + id).innerText = data.v.toFixed(1) + "V";
+            analyze(id);
         };
 
         function createCard(id) {
@@ -75,21 +81,16 @@
             const el = document.getElementById("stat-" + id);
             
             if (val < config.low) { 
-                el.innerText = "❌ ขาดน้ำ (ควรไปรดน้ำ)"; 
-                el.className = "status-msg danger"; 
+                el.innerText = "❌ ขาดน้ำ"; el.className = "status-msg danger"; 
             } else if (val > config.high) { 
-                el.innerText = "⚠️ น้ำเยอะไป (ระวังรากเน่า)"; 
-                el.className = "status-msg danger"; 
+                el.innerText = "⚠️ น้ำเยอะไป"; el.className = "status-msg danger"; 
             } else { 
-                el.innerText = "✅ ความชื้นพอดี"; 
-                el.className = "status-msg normal"; 
+                el.innerText = "✅ ปกติ"; el.className = "status-msg normal"; 
             }
         }
 
         client.connect({ 
-            useSSL: true, 
-            userName: "ESP32IOT", 
-            password: "Pipakdee2001", 
+            useSSL: true, userName: "ESP32IOT", password: "Pipakdee2001", 
             onSuccess: () => client.subscribe("esp32/#") 
         });
     </script>
