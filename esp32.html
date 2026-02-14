@@ -8,30 +8,25 @@
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;500&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Kanit', sans-serif; text-align: center; background: #f0f4f0; padding: 20px; }
-        .container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
-        .card { background: white; padding: 25px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 300px; margin-bottom: 20px; }
-        .soil-val { font-size: 3.5rem; font-weight: bold; color: #2e7d32; }
-        .status-msg { padding: 12px; border-radius: 12px; font-weight: bold; margin-top: 15px; }
-        .env-info { display: flex; justify-content: space-around; font-size: 0.9rem; color: #666; background: #f9f9f9; padding: 10px; border-radius: 15px; margin: 10px 0; }
+        .container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 30px; }
+        .card { background: white; padding: 25px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 280px; margin-bottom: 20px; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-5px); }
+        .soil-val { font-size: 3.5rem; font-weight: bold; color: #2e7d32; line-height: 1; margin: 10px 0; }
+        .status-msg { padding: 12px; border-radius: 12px; font-weight: bold; margin-top: 15px; font-size: 1rem; }
+        .env-info { display: flex; justify-content: space-around; font-size: 0.9rem; color: #666; background: #f9f9f9; padding: 10px; border-radius: 15px; margin: 15px 0; }
         .normal { background: #e8f5e9; color: #2e7d32; }
         .danger { background: #ffebee; color: #c62828; }
-        select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; font-family: 'Kanit'; font-size: 1rem; }
-        .chart-section { max-width: 800px; margin: 40px auto; background: white; padding: 20px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; font-family: 'Kanit'; font-size: 1rem; background-color: #fff; cursor: pointer; }
     </style>
 </head>
 <body>
-    <h1>🌿 เสาปักกระถางอัจฉริยะ</h1>
+    <h1 style="color: #2e7d32; margin-top: 20px;">🌿 ระบบดูแลต้นไม้อัจฉริยะ</h1>
+    <p style="color: #666;">ข้อมูล Real-time แยกตามเสาปักกระถาง</p>
+    
     <div id="pot-container" class="container"></div>
 
-    <div class="chart-section">
-        <h2 style="color: #2e7d32;">📈 แนวโน้มความชื้นดิน (24 ชม.)</h2>
-        <iframe width="100%" height="371" seamless frameborder="0" scrolling="no" 
-                src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSt51k8QJGRVcU5cIHsoJmHfaoBbMSsScLsapTrPm24Cib3HWSC_5ZnSZEiZzVDF2Qv4wjjNLdXmk6D/pubchart?oid=2140351851&amp;format=interactive">
-        </iframe>
-        <p style="font-size: 0.8rem; color: #888;">* ข้อมูลอัปเดตอัตโนมัติจาก Google Sheets</p>
-    </div>
-
     <script>
+        // การตั้งค่าต้นไม้แต่ละชนิด
         const plantConfig = {
             chili: { name: "ต้นพริก", low: 60, high: 80 },
             tomato: { name: "มะเขือเทศ", low: 70, high: 90 }
@@ -61,15 +56,15 @@
                         <option value="chili">ต้นพริก</option>
                         <option value="tomato">มะเขือเทศ</option>
                     </select>
-                    <div style="font-size: 0.7rem; color: #aaa;">อุปกรณ์: ${id}</div>
+                    <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 5px;">รหัสอุปกรณ์: ${id}</div>
                     <div id="soil-${id}" class="soil-val">--</div>
-                    <div style="color: #888; margin-bottom: 10px;">ความชื้นดิน (%)</div>
+                    <div style="color: #888;">ความชื้นดิน (%)</div>
                     <div class="env-info">
-                        <div id="temp-${id}">--</div>
-                        <div id="hum-${id}">--</div>
-                        <div id="volt-${id}">--</div>
+                        <div>🌡️ <span id="temp-${id}">--</span></div>
+                        <div>💧 <span id="hum-${id}">--</span></div>
+                        <div>🔋 <span id="volt-${id}">--</span></div>
                     </div>
-                    <div id="stat-${id}" class="status-msg">รอข้อมูล...</div>
+                    <div id="stat-${id}" class="status-msg">กำลังรอข้อมูล...</div>
                 </div>`;
             document.getElementById('pot-container').insertAdjacentHTML('beforeend', html);
         }
@@ -81,17 +76,25 @@
             const el = document.getElementById("stat-" + id);
             
             if (val < config.low) { 
-                el.innerText = "❌ ขาดน้ำ"; el.className = "status-msg danger"; 
+                el.innerText = "❌ ความชื้นต่ำเกินไป"; 
+                el.className = "status-msg danger"; 
             } else if (val > config.high) { 
-                el.innerText = "⚠️ น้ำเยอะไป"; el.className = "status-msg danger"; 
+                el.innerText = "⚠️ ความชื้นสูงเกินไป"; 
+                el.className = "status-msg danger"; 
             } else { 
-                el.innerText = "✅ ปกติ"; el.className = "status-msg normal"; 
+                el.innerText = "✅ ความชื้นเหมาะสม"; 
+                el.className = "status-msg normal"; 
             }
         }
 
         client.connect({ 
-            useSSL: true, userName: "ESP32IOT", password: "Pipakdee2001", 
-            onSuccess: () => client.subscribe("esp32/#") 
+            useSSL: true, 
+            userName: "ESP32IOT", 
+            password: "Pipakdee2001", 
+            onSuccess: () => {
+                console.log("Connected to HiveMQ");
+                client.subscribe("esp32/#");
+            } 
         });
     </script>
 </body>
